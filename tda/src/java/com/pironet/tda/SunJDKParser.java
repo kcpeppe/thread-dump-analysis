@@ -37,6 +37,7 @@ import java.util.Map;
 import java.util.Stack;
 import java.util.Vector;
 import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javax.swing.JOptionPane;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.MutableTreeNode;
@@ -49,6 +50,9 @@ import javax.swing.tree.TreeNode;
  * @author irockel
  */
 public class SunJDKParser extends AbstractDumpParser {
+    
+    private final static Pattern THREAD_ATTRIBUTES = Pattern.compile( "(daemon)?(?: prio=(\\d+))?(?: os_prio=(\\d+))?(?: tid=0x(\\p{XDigit}+))(?: nid=0x(\\p{XDigit}+))( [ \\(\\)a-zA-Z[^\\[]]+)?(?:\\[0x(\\p{XDigit}+))?");// 0x(\\p{XDigit}+)
+    private final static Pattern THREAD_NAME = Pattern.compile("\"(.+)\"");
 
     private MutableTreeNode nextDump = null;
     private Map threadStore = null;
@@ -1018,64 +1022,104 @@ public class SunJDKParser extends AbstractDumpParser {
      * @return thread tokens.
      */
     public String[] getThreadTokens(String name) {
+        Matcher threadName = THREAD_NAME.matcher( name);
+        Matcher threadAttributes = THREAD_ATTRIBUTES.matcher(name);
         String[] tokens = null;
-
-        if (name.indexOf("prio") > 0) {
-            tokens = new String[7];
-
-            tokens[0] = name.substring(1, name.lastIndexOf('"'));
-            tokens[1] = name.indexOf("daemon") > 0 ? "Daemon" : "Task";
-
-            String strippedToken = name.substring(name.lastIndexOf('"') + 1);
-
-            if (strippedToken.indexOf("tid=") >= 0) {
-                tokens[2] = strippedToken.substring(strippedToken.indexOf("prio=") + 5, strippedToken.indexOf("tid=") - 1);
-            } else {
-                tokens[2] = strippedToken.substring(strippedToken.indexOf("prio=") + 5);
+        
+        /*
+        daemon prio=5 os_prio=31 tid=0x00007ff5520e2000 nid=0x707 runnable [0x0000000000000000
+        1 thread characteristics: daemon
+        1 thread characteristics: 5
+        1 thread characteristics: 31
+        1 thread characteristics: 00007ff5520e2000
+        1 thread characteristics: 707
+        1 thread characteristics:  runnable 
+        1 thread characteristics: 0000000000000000
+        */
+        if ( threadName.find() && threadAttributes.find()) {
+            tokens = new String[7];                          
+            tokens[ 0] = threadName.group( 1).trim();
+            
+            tokens[ 1] = ( threadAttributes.group( 1) == null) ? "Task" : "Daemon";
+            
+            tokens[ 2] = threadAttributes.group( 2);
+            if ( tokens[ 2] == null)
+                tokens[ 2] = threadAttributes.group( 3);
+            
+            tokens[ 3] = threadAttributes.group( 4);
+            if ( tokens[ 3] != null) {
+                tokens[ 3] = String.valueOf( Long.parseLong(tokens[ 3], 16));
             }
-
-            if ((strippedToken.indexOf("tid=") >= 0) && (strippedToken.indexOf("nid=") >= 0)) {
-                tokens[3] = String.valueOf(Long.parseLong(strippedToken.substring(strippedToken.indexOf("tid=") + 6,
-                        strippedToken.indexOf("nid=") - 1), 16));
-            } else if (strippedToken.indexOf("tid=") >= 0) {
-                tokens[3] = String.valueOf(Long.parseLong(strippedToken.substring(strippedToken.indexOf("tid=") + 6), 16));
+            
+            tokens[ 4] = threadAttributes.group( 5);
+            if ( tokens[ 4] != null) {
+                tokens[ 4] = String.valueOf( Long.parseLong(tokens[ 4], 16));
             }
+            
+            tokens[ 5] = threadAttributes.group( 6);
+                
+            tokens[ 6] = threadAttributes.group( 7);            
+            if ( tokens[ 6] == null)
+                tokens[ 6] = "<no address range>";
+            else
+                tokens[ 6] = "[0x" + tokens[ 6].trim() + "]"; 
 
-            // default for token 6 is:
-            tokens[6] = "<no address range>";
-
-            if ((strippedToken.indexOf("nid=") >= 0) && (strippedToken.indexOf(" ", strippedToken.indexOf("nid="))) >= 0) {
-                if (strippedToken.indexOf("nid=0x") > 0) { // is hexadecimal
-                    String nidToken = strippedToken.substring(strippedToken.indexOf("nid=") + 6,
-                            strippedToken.indexOf(" ", strippedToken.indexOf("nid=")));
-                    tokens[4] = String.valueOf(Long.parseLong(nidToken, 16));
-                } else { // is decimal
-                    String nidToken = strippedToken.substring(strippedToken.indexOf("nid=") + 4,
-                            strippedToken.indexOf(" ", strippedToken.indexOf("nid=")));
-                    tokens[4] = nidToken;
-                }
-
-                if (strippedToken.indexOf('[') > 0) {
-                    if (strippedToken.indexOf("lwp_id=") > 0) {
-                        tokens[5] = strippedToken.substring(strippedToken.indexOf(" ", strippedToken.indexOf("lwp_id=")) + 1, strippedToken.indexOf('[',
-                                strippedToken.indexOf("lwp_id=")) - 1);
-                    } else {
-                        tokens[5] = strippedToken.substring(strippedToken.indexOf(" ", strippedToken.indexOf("nid=")) + 1, strippedToken.indexOf('[',
-                                strippedToken.indexOf("nid=")) - 1);
-                    }
-                    tokens[6] = strippedToken.substring(strippedToken.indexOf('['));
-                } else {
-                    tokens[5] = strippedToken.substring(strippedToken.indexOf(" ", strippedToken.indexOf("nid=")) + 1);
-                }
-            } else if (strippedToken.indexOf("nid=") >= 0) {
-                String nidToken = strippedToken.substring(strippedToken.indexOf("nid=") + 6);
-                // nid is at the end.
-                if (nidToken.indexOf("0x") > 0) { // is hexadecimal
-                    tokens[4] = String.valueOf(Long.parseLong(nidToken, 16));
-                } else {
-                    tokens[4] = nidToken;
-                }
-            }
+//        if (name.indexOf("prio") > 0) {
+//            tokens = new String[7];
+//
+//            tokens[0] = name.substring(1, name.lastIndexOf('"'));
+//            tokens[1] = name.indexOf("daemon") > 0 ? "Daemon" : "Task";
+//
+//            String strippedToken = name.substring(name.lastIndexOf('"') + 1);
+//
+//            if (strippedToken.indexOf("tid=") >= 0) {
+//                tokens[2] = strippedToken.substring(strippedToken.indexOf("prio=") + 5, strippedToken.indexOf("tid=") - 1);
+//            } else {
+//                tokens[2] = strippedToken.substring(strippedToken.indexOf("prio=") + 5);
+//            }
+//
+//            if ((strippedToken.indexOf("tid=") >= 0) && (strippedToken.indexOf("nid=") >= 0)) {
+//                tokens[3] = String.valueOf(Long.parseLong(strippedToken.substring(strippedToken.indexOf("tid=") + 6,
+//                        strippedToken.indexOf("nid=") - 1), 16));
+//            } else if (strippedToken.indexOf("tid=") >= 0) {
+//                tokens[3] = String.valueOf(Long.parseLong(strippedToken.substring(strippedToken.indexOf("tid=") + 6), 16));
+//            }
+//
+//            // default for token 6 is:
+//            tokens[6] = "<no address range>";
+//
+//            if ((strippedToken.indexOf("nid=") >= 0) && (strippedToken.indexOf(" ", strippedToken.indexOf("nid="))) >= 0) {
+//                if (strippedToken.indexOf("nid=0x") > 0) { // is hexadecimal
+//                    String nidToken = strippedToken.substring(strippedToken.indexOf("nid=") + 6,
+//                            strippedToken.indexOf(" ", strippedToken.indexOf("nid=")));
+//                    tokens[4] = String.valueOf(Long.parseLong(nidToken, 16));
+//                } else { // is decimal
+//                    String nidToken = strippedToken.substring(strippedToken.indexOf("nid=") + 4,
+//                            strippedToken.indexOf(" ", strippedToken.indexOf("nid=")));
+//                    tokens[4] = nidToken;
+//                }
+//
+//                if (strippedToken.indexOf('[') > 0) {
+//                    if (strippedToken.indexOf("lwp_id=") > 0) {
+//                        tokens[5] = strippedToken.substring(strippedToken.indexOf(" ", strippedToken.indexOf("lwp_id=")) + 1, strippedToken.indexOf('[',
+//                                strippedToken.indexOf("lwp_id=")) - 1);
+//                    } else {
+//                        tokens[5] = strippedToken.substring(strippedToken.indexOf(" ", strippedToken.indexOf("nid=")) + 1, strippedToken.indexOf('[',
+//                                strippedToken.indexOf("nid=")) - 1);
+//                    }
+//                    tokens[6] = strippedToken.substring(strippedToken.indexOf('['));
+//                } else {
+//                    tokens[5] = strippedToken.substring(strippedToken.indexOf(" ", strippedToken.indexOf("nid=")) + 1);
+//                }
+//            } else if (strippedToken.indexOf("nid=") >= 0) {
+//                String nidToken = strippedToken.substring(strippedToken.indexOf("nid=") + 6);
+//                // nid is at the end.
+//                if (nidToken.indexOf("0x") > 0) { // is hexadecimal
+//                    tokens[4] = String.valueOf(Long.parseLong(nidToken, 16));
+//                } else {
+//                    tokens[4] = nidToken;
+//                }
+//            }
         } else {
             tokens = new String[3];
             tokens[0] = name.substring(1, name.lastIndexOf('"'));

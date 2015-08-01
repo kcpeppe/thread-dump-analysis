@@ -39,7 +39,7 @@ public class Sandbox {
     
     public static void otherStuff() {
         
-        Pattern threadCharacteristicsPattern = Pattern.compile( "(daemon)?( prio=(\\d+))?( os_prio=(\\d+))?( tid=0x(\\p{XDigit}+))( nid=0x(\\p{XDigit}+))( [ \\(\\)a-zA-Z[^\\[]]+)?(?:\\[0x(\\p{XDigit}+))?");// 0x(\\p{XDigit}+)
+        Pattern threadCharacteristicsPattern = Pattern.compile( "(daemon)?(?: prio=(\\d+))?(?: os_prio=(\\d+))?(?: tid=0x(\\p{XDigit}+))(?: nid=0x(\\p{XDigit}+))( [ \\(\\)a-zA-Z[^\\[]]+)?(?:\\[0x(\\p{XDigit}+))?");// 0x(\\p{XDigit}+)
         System.out.println("Matching " + threadHeaders.length + " headers");
         for ( int i = 0; i < threadHeaders.length; i++) {
             Matcher threadCharacteristics = threadCharacteristicsPattern.matcher( threadHeaders[ i]);
