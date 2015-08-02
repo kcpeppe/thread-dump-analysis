@@ -51,8 +51,8 @@ import javax.swing.tree.TreeNode;
  */
 public class SunJDKParser extends AbstractDumpParser {
     
-    private final static Pattern THREAD_ATTRIBUTES = Pattern.compile( "(daemon)?(?: prio=(\\d+))?(?: os_prio=(\\d+))?(?: tid=0x(\\p{XDigit}+))(?: nid=0x(\\p{XDigit}+))( [ \\(\\)a-zA-Z[^\\[]]+)?(?:\\[0x(\\p{XDigit}+))?");// 0x(\\p{XDigit}+)
-    private final static Pattern THREAD_NAME = Pattern.compile("\"(.+)\"");
+    public final static Pattern THREAD_ATTRIBUTES = Pattern.compile( "(daemon)?(?: prio=(\\d+))?(?: os_prio=(\\d+))?(?: tid=0x(\\p{XDigit}+))(?: nid=0x(\\p{XDigit}+))( [ \\(\\)a-zA-Z[^\\[]]+)?(?:\\[0x(\\p{XDigit}+))?");// 0x(\\p{XDigit}+)
+    public final static Pattern THREAD_NAME = Pattern.compile("\"(.+)\"");
 
     private MutableTreeNode nextDump = null;
     private Map threadStore = null;
@@ -1025,17 +1025,7 @@ public class SunJDKParser extends AbstractDumpParser {
         Matcher threadName = THREAD_NAME.matcher( name);
         Matcher threadAttributes = THREAD_ATTRIBUTES.matcher(name);
         String[] tokens = null;
-        
-        /*
-        daemon prio=5 os_prio=31 tid=0x00007ff5520e2000 nid=0x707 runnable [0x0000000000000000
-        1 thread characteristics: daemon
-        1 thread characteristics: 5
-        1 thread characteristics: 31
-        1 thread characteristics: 00007ff5520e2000
-        1 thread characteristics: 707
-        1 thread characteristics:  runnable 
-        1 thread characteristics: 0000000000000000
-        */
+              
         if ( threadName.find() && threadAttributes.find()) {
             tokens = new String[7];                          
             tokens[ 0] = threadName.group( 1).trim();
